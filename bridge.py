@@ -45,12 +45,21 @@ def create_network(target_obj_list,materialName,channel_dict,render_plugin):
 
     if render_plugin =="Vray":
         print "==== Vray ===="
-        # 1. reflection to White
-        # 2. use roughness instead of glossiness
+        try:
+            vray_version = pluginInfo('vrayformaya', q=1, version=1)
+            if int(vray_version.split('.')[0]) < 4:
+                print "Vray version too low. Please update to 4.0 or above"
+                vray_version = None
+        except:
+            vray_version = None
+        if vray_version:
+            # 1. use roughness instead of glossiness
+            setAttr("%s.useRoughness" % current_shader, 1)
+        # 2. reflection to White
         # 3. use tangent space normal mode
         setAttr("%s.reflectionColor"%current_shader, 1, 1, 1,type="double3")
-        setAttr("%s.useRoughness"%current_shader, 1)
         setAttr("%s.bumpMapType"%current_shader, 1)
+
     elif render_plugin == "Renderman_PxrDisney":
         setAttr("%s.specular"%current_shader, 1)
         pass
@@ -63,13 +72,11 @@ def create_network(target_obj_list,materialName,channel_dict,render_plugin):
     if len(target_obj_list)==0:
         print "=== SP to Maya Sync Finished ==="
         return None
-
     result=confirmDialog(title='Confirm', message='     Update Material Network for:     \n     %s?'%(ls(sl=1)[0]), button=['Yes','No'], defaultButton='Yes', cancelButton='No', dismissString='No')
     if result == 'No':
         print "material update abort"
         print "=== SP to Maya Sync Finished ==="
         return None
-
     sets(target_obj_list, forceElement=current_SG)
     print "=== SP to Maya Sync Finished ==="
 
@@ -114,7 +121,7 @@ def update_textures(current_shader,channel_dict,render_plugin,current_SG):
 
         elif param_name == 'rsNormal':
             file_node = shadingNode('RedshiftNormalMap', name=utils_node, asUtility=1,skipSelect=1)
-            setAttr("%s.tex0"%file_node, texture_path, type="string")
+            setAttr("%s.tex0"%file_node, texture_path.replace('1001','<UDIM>'), type="string")
             output_type = 'outDisplacementVector'
             param_name = 'bump_input'
         
@@ -189,14 +196,14 @@ def updateFileTexture(create_file,file_name, p2d_name,texture_path,texture_color
         # node exists
         tex = pm.PyNode(file_name)
 
+
     if render_plugin == "Renderman_PxrDisney":
-        print "update tex"
-        print tex
         pm.setAttr(tex.filename, texture_path.replace("1001", "_MAPID_"))
-        print texture_path
         pm.setAttr(tex.atlasStyle, 1)
         if texture_color_space == "sRGB":
             pm.setAttr(tex.linearize, 1)
+    elif render_plugin == "RedShift" and "rsNormal" in tex:
+        pm.setAttr(tex.tex0, texture_path.replace('1001', '<UDIM>'), type="string")
     else:
         try:
             pm.setAttr(tex.fileTextureName,texture_path)
