@@ -43,34 +43,40 @@ def run(material_name, channel_dict, render_plugin):
 
 def create_network(target_obj_list, material_name, channel_dict, render_plugin):
     print "=== Start Creating %s Network ===" % render_plugin
-    # create a shader and assign to selection
-    current_shader = shadingNode(render_plugin_dict[render_plugin], name=material_name, asShader=1, skipSelect=1)
-    current_sg = sets(renderable=True, noSurfaceShader=True, empty=1, name=current_shader+"SG")
-    connectAttr("%s.outColor" % current_shader, "%s.surfaceShader" % current_sg)
-
     if render_plugin == "Arnold":
-        try:
-            loadPlugin('mtoa')
-            arnold_version = pluginInfo('mtoa', q=1, version=1)
-            if int(arnold_version.split('.')[0]) < 2:
-                print "Arnold version too low. Please update mtoa to 2.0 or above"
+        print "==== Arnold ===="
+        if not pluginInfo("mtoa", q=1, l=1):
+            try:
+                loadPlugin('mtoa')
+                #arnold_version = pluginInfo('mtoa', q=1, version=1)
+                #if int(arnold_version.split('.')[0]) < 2:
+                #    print "Arnold version too low. Please update mtoa to 2.0 or above"
+                #    return None
+            except:
+                print "Cannot find " + render_plugin + " plugin."
                 return None
-        except:
-            print "Cannot find" + render_plugin + " plugin."
-            return None
+        # create a shader and assign to selection
+        current_shader = shadingNode(render_plugin_dict[render_plugin], name=material_name, asShader=1, skipSelect=1)
+        current_sg = sets(renderable=True, noSurfaceShader=True, empty=1, name=current_shader+"SG")
+        connectAttr("%s.outColor" % current_shader, "%s.surfaceShader" % current_sg)
 
     if render_plugin == "Vray":
         print "==== Vray ===="
-        try:
-            loadPlugin('vrayformaya')
-            vray_version = pluginInfo('vrayformaya', q=1, version=1)
-            if int(vray_version.split('.')[0]) < 4:
-                print "Vray version too low. Please update to 4.0 or above"
+        if not pluginInfo("vrayformaya", q=1, l=1):
+            try:
+                loadPlugin('vrayformaya')
+            #    vray_version = pluginInfo('vrayformaya', q=1, version=1)
+            #    if vray_version != "Next":
+            #        if int(vray_version.split('.')[0]) < 4:
+            #            print "Vray version too low. Please update to 4.0 or above"
+            #            return None
+            except:
+                print "Cannot find " + render_plugin + " plugin."
                 return None
-        except:
-            print "Cannot find" + render_plugin + " plugin."
-            return None
-
+        # create a shader and assign to selection
+        current_shader = shadingNode(render_plugin_dict[render_plugin], name=material_name, asShader=1, skipSelect=1)
+        current_sg = sets(renderable=True, noSurfaceShader=True, empty=1, name=current_shader+"SG")
+        connectAttr("%s.outColor" % current_shader, "%s.surfaceShader" % current_sg)
         # 1. use roughness instead of glossiness
         # 2. reflection to White
         # 3. use tangent space normal mode
@@ -79,9 +85,31 @@ def create_network(target_obj_list, material_name, channel_dict, render_plugin):
         setAttr("%s.bumpMapType" % current_shader, 1)
 
     elif render_plugin == "Renderman_PxrDisney":
+        print "==== Renderman PxrDisney ===="
+        if not pluginInfo("RenderMan_for_Maya", q=1, l=1):
+            try:
+                loadPlugin('RenderMan_for_Maya')
+            except:
+                print "Cannot find " + "Renderman" + " plugin."
+                return None
+        # create a shader and assign to selection
+        current_shader = shadingNode(render_plugin_dict[render_plugin], name=material_name, asShader=1, skipSelect=1)
+        current_sg = sets(renderable=True, noSurfaceShader=True, empty=1, name=current_shader+"SG")
+        connectAttr("%s.outColor" % current_shader, "%s.surfaceShader" % current_sg)
         setAttr("%s.specular" % current_shader, 1)
 
     elif render_plugin == "RedShift":
+        print "==== Renderman PxrDisney ===="
+        if not pluginInfo("redshift4maya", q=1, l=1):
+            try:
+                loadPlugin('redshift4maya')
+            except:
+                print "Cannot find " + render_plugin + " plugin."
+                return None
+        # create a shader and assign to selection
+        current_shader = shadingNode(render_plugin_dict[render_plugin], name=material_name, asShader=1, skipSelect=1)
+        current_sg = sets(renderable=True, noSurfaceShader=True, empty=1, name=current_shader+"SG")
+        connectAttr("%s.outColor" % current_shader, "%s.surfaceShader" % current_sg)
         setAttr("%s.%s" % (current_shader, "refl_fresnel_mode"), 2)  # metalness workflow
 
     update_textures(current_shader, channel_dict, render_plugin, current_sg)
