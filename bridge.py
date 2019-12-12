@@ -3,16 +3,16 @@ from maya.cmds import*
 import pymel.core as pm
 import json, os, re
 
-render_plugin_dict = {"Arnold": "aiStandardSurface", "Vray": "VRayMtl", "Renderman_PxrDisney": "PxrDisney", "RedShift": "RedshiftMaterial"}
+render_plugin_dict = {"Arnold": "aiStandardSurface", "VRay": "VRayMtl", "Renderman_PxrDisney": "PxrDisney", "RedShift": "RedshiftMaterial"}
 
 
 def run(material_name, channel_dict, render_plugin):
+
     """
     material_name: name of the material
-    channel_dict: {
-    "baseColor":["outColor","D:/path/to/exported/sword_baseColor.1001.tiff", "sRGB","sword_baseColor.1001.tiff"],
-    "specularRoughness":["outAlpha","D:/path/to/exported/sword_Roughness.1001.tiff", "Raw","sword_Roughness.1001.tiff"]
-    }
+    channel_dict: {"basecolor":["E:/test/sword_BaseColor.$textureSet.tif","baseColor"],
+    "height":["E:/test/sword_Height.$textureSet.tif","DISPLACEMENT"],
+    "user0":["E:/test/sword_wetMask.$textureSet.tif","base"]}
     render_plugin: "Arnold"
     """
 
@@ -42,16 +42,14 @@ def run(material_name, channel_dict, render_plugin):
 
 
 def create_network(target_obj_list, material_name, channel_dict, render_plugin):
+    current_shader = None
+    current_sg = None
     print "=== Start Creating %s Network ===" % render_plugin
     if render_plugin == "Arnold":
         print "==== Arnold ===="
         if not pluginInfo("mtoa", q=1, l=1):
             try:
                 loadPlugin('mtoa')
-                #arnold_version = pluginInfo('mtoa', q=1, version=1)
-                #if int(arnold_version.split('.')[0]) < 2:
-                #    print "Arnold version too low. Please update mtoa to 2.0 or above"
-                #    return None
             except:
                 print "Cannot find " + render_plugin + " plugin."
                 return None
@@ -60,16 +58,11 @@ def create_network(target_obj_list, material_name, channel_dict, render_plugin):
         current_sg = sets(renderable=True, noSurfaceShader=True, empty=1, name=current_shader+"SG")
         connectAttr("%s.outColor" % current_shader, "%s.surfaceShader" % current_sg)
 
-    if render_plugin == "Vray":
-        print "==== Vray ===="
+    if render_plugin == "VRay":
+        print "==== VRay ===="
         if not pluginInfo("vrayformaya", q=1, l=1):
             try:
                 loadPlugin('vrayformaya')
-            #    vray_version = pluginInfo('vrayformaya', q=1, version=1)
-            #    if vray_version != "Next":
-            #        if int(vray_version.split('.')[0]) < 4:
-            #            print "Vray version too low. Please update to 4.0 or above"
-            #            return None
             except:
                 print "Cannot find " + render_plugin + " plugin."
                 return None
@@ -118,7 +111,7 @@ def create_network(target_obj_list, material_name, channel_dict, render_plugin):
     if len(target_obj_list) == 0:
         print "=== SP to Maya Sync Finished ==="
         return None
-    result=confirmDialog(title='Confirm',
+    result = confirmDialog(title='Confirm',
                          message='     Update Material Network for:     \n     %s?' % (ls(sl=1)[0]),
                          button =['Yes', 'No'], defaultButton='Yes',
                          cancelButton='No',
@@ -133,16 +126,18 @@ def create_network(target_obj_list, material_name, channel_dict, render_plugin):
 
 def update_textures(current_shader, channel_dict, render_plugin, current_sg):
     channel_dict = json.loads(channel_dict)
-    # create file texture node
-    for param_name in channel_dict:
-        tokens = channel_dict[param_name][3]
-        if len(tokens) < 4:
-            continue  # skip if the textInput is empty or too short
-
-        output_type= channel_dict[param_name][0]
-        texture_path = channel_dict[param_name][1]
-        texture_color_space = channel_dict[param_name][2]
-
+    print channel_dict
+    for channel in channel_dict:
+        texture_path = channel_dict[channel][0]
+        print texture_path
+        param_name = channel_dict[channel][1]
+        print param_name
+        # create file texture node
+        #for param_name in channel_dict:
+        output_type = "outColor"
+        #texture_path = channel_dict[param_name][1]
+        #texture_color_space = channel_dict[param_name][2]
+        '''
         texture_filename = os.path.basename(texture_path).replace("1001", "\d\d\d\d")
         texture_folder = os.path.dirname(texture_path)
         texture_exists = None
@@ -153,6 +148,8 @@ def update_textures(current_shader, channel_dict, render_plugin, current_sg):
 
         if texture_exists is None:
             continue  # skip if no texture for current channel
+        '''
+
         current_node = current_shader
         utils_node = current_shader + '_' + param_name
         print "start updating "+param_name
@@ -160,60 +157,71 @@ def update_textures(current_shader, channel_dict, render_plugin, current_sg):
         if pm.objExists(utils_node):
             print 'update node'
             # if node exists, update texture path only
-            file_node = update_file(0, utils_node, utils_node+'_p2d', texture_path, texture_color_space, render_plugin)
+            file_node = update_file(0, utils_node, utils_node+'_p2d', texture_path, render_plugin)
 
-        elif param_name == 'aiNormal':
+        elif param_name == 'NORMAL' and render_plugin == "Arnold":
             normal_node = shadingNode('aiNormalMap', name=utils_node, asUtility=1, skipSelect=1)
             connectAttr('%s.outValue' % normal_node, '%s.normalCamera' % current_node)
             current_node = normal_node
             param_name = 'input'
-            file_node = update_file(1, utils_node, utils_node+'_p2d', texture_path, texture_color_space, render_plugin)
+            file_node = update_file(1, utils_node, utils_node+'_p2d', texture_path, render_plugin)
 
-        elif param_name == 'rsNormal':
+        elif param_name == 'NORMAL' and render_plugin == "RedShift":
             file_node = shadingNode('RedshiftNormalMap', name=utils_node, asUtility=1,skipSelect=1)
-            setAttr("%s.tex0" % file_node, texture_path.replace('1001', '<UDIM>'), type="string")
+            setAttr("%s.tex0" % file_node, texture_path.replace('$textureSet', '<UDIM>'), type="string")
             output_type = 'outDisplacementVector'
             param_name = 'bump_input'
         
-        elif param_name == 'pxrNormal':
+        elif param_name == 'NORMAL'and render_plugin == "Renderman_PxrDisney":
             file_node = shadingNode('PxrNormalMap', name=utils_node, asTexture=1, skipSelect=1)
-            setAttr("%s.filename"%file_node, texture_path.replace("1001", "_MAPID_"), type="string")
+            setAttr("%s.filename"%file_node, texture_path.replace("$textureSet", "_MAPID_"), type="string")
             setAttr("%s.atlasStyle"%file_node, 1)
             output_type = 'resultN'
             param_name = 'bumpNormal'
 
-        elif param_name == 'vrayNormal':
-            file_node = update_file(1, utils_node, utils_node+'_p2d', texture_path, texture_color_space, render_plugin)
+        elif param_name == 'NORMAL' and render_plugin == "VRay":
+            file_node = update_file(1, utils_node, utils_node+'_p2d', texture_path, render_plugin)
             output_type = 'outColor'
             param_name = 'bumpMap'
         
-        elif param_name == 'displacement':
-            print 'disp'
+        elif param_name == 'DISPLACEMENT':
             disp_node = shadingNode('displacementShader', name=utils_node+"Node", asUtility=1, skipSelect=1)
             connectAttr('%s.displacement' % (disp_node), '%s.displacementShader' % current_sg)
             current_node = disp_node
             param_name = 'displacement'
-            file_node = update_file(1, utils_node, utils_node+'_p2d', texture_path, texture_color_space, render_plugin)
+            file_node = update_file(1, utils_node, utils_node+'_p2d', texture_path, render_plugin)
             if render_plugin == "Renderman_PxrDisney":
                 output_type = "resultR"
 
         elif render_plugin == "Renderman_PxrDisney":
-            file_node = update_file(1, utils_node, utils_node+'_p2d', texture_path, texture_color_space, render_plugin)
-            if output_type == "outColor":
-                output_type = "resultRGB"
-                setAttr("%s.linearize" % file_node, 1)
-            else:
-                output_type = "resultR"
+            file_node = update_file(1, utils_node, utils_node+'_p2d', texture_path, render_plugin)
+            output_type = "resultRGB"
+
         else:
-            file_node = update_file(1, utils_node, utils_node+'_p2d', texture_path, texture_color_space, render_plugin)
+            file_node = update_file(1, utils_node, utils_node+'_p2d', texture_path, render_plugin)
 
-        try:
-            connectAttr('%s.%s' % (file_node, output_type), '%s.%s' % (current_node, param_name))
-        except:
-            pass
+        print "connect %s.%s to %s.%s"%(file_node, output_type, current_node, param_name)
+        if output_type == "outColor":
+            print "connect %s.%s to %s.%s"%(file_node, output_type , current_node, param_name)
+            try:
+                connectAttr('%s.%s' % (file_node, "outColor"), '%s.%s' % (current_node, param_name))
+            except:
+                connectAttr('%s.%s' % (file_node, "outAlpha"), '%s.%s' % (current_node, param_name))
+        elif output_type == "resultRGB":
+            print "connect %s.%s to %s.%s"%(file_node, output_type , current_node, param_name)
+            try:
+                connectAttr('%s.%s' % (file_node, "resultRGB"), '%s.%s' % (current_node, param_name))
+            except:
+                connectAttr('%s.%s' % (file_node, "resultR"), '%s.%s' % (current_node, param_name))
+        else:
+            print "connect %s.%s to %s.%s"%(file_node, output_type , current_node, param_name)
+            try:
+                connectAttr('%s.%s' % (file_node, output_type), '%s.%s' % (current_node, param_name))
+            except:
+                pass
 
 
-def update_file(create_file, file_name, p2d_name, texture_path, texture_color_space, render_plugin):
+def update_file(create_file, file_name, p2d_name, texture_path, render_plugin):
     if create_file == 1 and render_plugin != "Renderman_PxrDisney":
         # create file and place2d
         tex = pm.shadingNode('file', name=file_name, asTexture=True, isColorManaged=True)   
@@ -239,6 +247,7 @@ def update_file(create_file, file_name, p2d_name, texture_path, texture_color_sp
         pm.connectAttr(p2d.translateFrame, tex.translateFrame)
         pm.connectAttr(p2d.wrapU, tex.wrapU)
         pm.connectAttr(p2d.wrapV, tex.wrapV)
+
     elif create_file == 1 and render_plugin =="Renderman_PxrDisney":
         # create pxrTexture
         tex = pm.shadingNode('PxrTexture', name=file_name, asTexture=True)
@@ -247,18 +256,15 @@ def update_file(create_file, file_name, p2d_name, texture_path, texture_color_sp
         # node exists
         tex = pm.PyNode(file_name)
 
-
     if render_plugin == "Renderman_PxrDisney":
-        pm.setAttr(tex.filename, texture_path.replace("1001", "_MAPID_"))
+        pm.setAttr(tex.filename, texture_path.replace("$textureSet", "_MAPID_"))
         pm.setAttr(tex.atlasStyle, 1)
-        if texture_color_space == "sRGB":
-            pm.setAttr(tex.linearize, 1)
+
     elif render_plugin == "RedShift" and "rsNormal" in tex:
-        pm.setAttr(tex.tex0, texture_path.replace('1001', '<UDIM>'), type="string")
+        pm.setAttr(tex.tex0, texture_path.replace('$textureSet', '<UDIM>'), type="string")
     else:
         try:
-            pm.setAttr(tex.fileTextureName, texture_path)
-            pm.setAttr(tex.colorSpace, texture_color_space)
+            pm.setAttr(tex.fileTextureName, texture_path.replace('$textureSet', '<UDIM>'))
             pm.setAttr(tex.alphaIsLuminance, 1)
             pm.setAttr(tex.uvTilingMode, 3)
         except:
