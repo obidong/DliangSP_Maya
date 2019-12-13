@@ -126,7 +126,6 @@ def create_network(target_obj_list, material_name, channel_dict, render_plugin):
 
 def update_textures(current_shader, channel_dict, render_plugin, current_sg):
     channel_dict = json.loads(channel_dict)
-    print channel_dict
     for channel in channel_dict:
         texture_path = channel_dict[channel][0]
         print texture_path
