@@ -11,7 +11,7 @@ def run(material_name, channel_dict, render_plugin):
     """
     material_name: name of the material
     channel_dict: {"basecolor":["E:/test/sword_BaseColor.$textureSet.tif","baseColor"],
-    "height":["E:/test/sword_Height.$textureSet.tif","DISPLACEMENT"],
+    "displacement":["E:/test/sword_Displacement.$textureSet.tif","DISPLACEMENT"],
     "user0":["E:/test/sword_wetMask.$textureSet.tif","base"]}
     render_plugin: "Arnold"
     """
@@ -128,27 +128,10 @@ def update_textures(current_shader, channel_dict, render_plugin, current_sg):
     channel_dict = json.loads(channel_dict)
     for channel in channel_dict:
         texture_path = channel_dict[channel][0]
-        print texture_path
         param_name = channel_dict[channel][1]
-        print param_name
-        # create file texture node
-        #for param_name in channel_dict:
+        if len(param_name)<4:
+            continue
         output_type = "outColor"
-        #texture_path = channel_dict[param_name][1]
-        #texture_color_space = channel_dict[param_name][2]
-        '''
-        texture_filename = os.path.basename(texture_path).replace("1001", "\d\d\d\d")
-        texture_folder = os.path.dirname(texture_path)
-        texture_exists = None
-        for f in os.listdir(texture_folder):
-            texture_exists = re.search(texture_filename, f)
-            if texture_exists:
-                break
-
-        if texture_exists is None:
-            continue  # skip if no texture for current channel
-        '''
-
         current_node = current_shader
         utils_node = current_shader + '_' + param_name
         print "start updating "+param_name
